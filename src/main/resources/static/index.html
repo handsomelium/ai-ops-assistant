@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 应用开发实战 · 园区智能运维助手</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+    <div class="topbar-inner">
+        <div class="brand">
+            <div class="brand-mark">AI</div>
+            <div>
+                <h1>园区智能运维助手</h1>
+                <p class="subtitle">AI 应用开发实战培训 Demo · Spring Boot 3.5 + Spring AI 1.1 + 阿里云百炼</p>
+            </div>
+        </div>
+        <div class="status" id="status">
+            <span class="dot" id="status-dot"></span>
+            <span id="status-text">正在检查配置…</span>
+        </div>
+    </div>
+</header>
+
+<nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="chat">
+        <span class="tab-no">01</span>基础问答
+        <em>提示词 · 会话记忆 · 长期记忆</em>
+    </button>
+    <button class="tab" data-tab="agent">
+        <span class="tab-no">02</span>Agent 工具调用
+        <em>让 AI 真正操作业务系统</em>
+    </button>
+    <button class="tab" data-tab="multi">
+        <span class="tab-no">03</span>多智能体协同
+        <em>调度 · 专家分工 · 汇总</em>
+    </button>
+    <button class="tab" data-tab="data">
+        <span class="tab-no">04</span>业务数据面板
+        <em>验证 AI 的写操作真实落地</em>
+    </button>
+</nav>
+
+<main>
+    <!-- ============ 对话类页面（01/02/03 共用） ============ -->
+    <section class="panel active" id="panel-chat">
+        <div class="layout">
+            <div class="col-main">
+                <div class="card chat-card">
+                    <div class="card-head">
+                        <h2 id="chat-title">基础问答</h2>
+                        <div class="card-actions">
+                            <button class="btn ghost sm" id="btn-clear-conv">清空当前会话</button>
+                        </div>
+                    </div>
+                    <div class="messages" id="messages"></div>
+                    <div class="composer">
+                        <textarea id="input" rows="2"
+                                  placeholder="输入问题，Enter 发送 / Shift+Enter 换行"></textarea>
+                        <button class="btn primary" id="btn-send">发送</button>
+                    </div>
+                    <div class="quick" id="quick"></div>
+                </div>
+            </div>
+
+            <aside class="col-side">
+                <div class="card">
+                    <div class="card-head"><h3>执行过程</h3>
+                        <button class="btn ghost sm" id="btn-clear-trace">清空</button>
+                    </div>
+                    <div class="timeline" id="timeline">
+                        <p class="empty">发起对话后，这里会实时显示 AI 的每一步动作。</p>
+                    </div>
+                </div>
+
+                <div class="card" id="card-context"></div>
+            </aside>
+        </div>
+    </section>
+
+    <!-- ============ 业务数据面板 ============ -->
+    <section class="panel" id="panel-data">
+        <div class="card">
+            <div class="card-head">
+                <h2>运维总览</h2>
+                <button class="btn ghost sm" id="btn-refresh-data">刷新</button>
+            </div>
+            <div class="stats" id="overview"></div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-head"><h3>工单列表</h3><span class="hint" id="wo-count"></span></div>
+                <div class="table-wrap"><table id="tbl-orders"></table></div>
+            </div>
+            <div class="card">
+                <div class="card-head"><h3>设备台账</h3><span class="hint" id="dev-count"></span></div>
+                <div class="table-wrap"><table id="tbl-devices"></table></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-head"><h3>工程师负载</h3></div>
+            <div class="table-wrap"><table id="tbl-engineers"></table></div>
+        </div>
+    </section>
+</main>
+
+<footer class="footer">
+    <span>Tel：+86 757-88361111</span>
+    <span>Http://www.ake.com.cn</span>
+    <span class="dim">本页面由 Spring Boot 直接托管，前后端同一工程，无独立构建步骤</span>
+</footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>

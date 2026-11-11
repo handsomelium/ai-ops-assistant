@@ -1,0 +1,92 @@
+# =============================================================================
+# ai-ops-assistant —— 推送 GitHub 用的忽略规则
+# 技术栈：Java 21 / Maven / Spring Boot 3.5 / Spring AI
+#
+# 注意：.idea/.gitignore 只对 .idea 目录内部生效，管不到 target/，
+#       所以由根目录这份文件统一接管。
+# =============================================================================
+
+# ---------- Maven / Java 构建产物 ----------
+# mvn package 的全部输出：jar、class、surefire 报告、maven-status 等
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
+
+# Maven Wrapper 的 jar 需要提交，作为 *.jar 的例外
+!.mvn/wrapper/maven-wrapper.jar
+
+# Maven 插件生成的辅助文件
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.flattened-pom.xml
+
+# ---------- IDE / 编辑器 ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.classpath
+.project
+.factorypath
+.settings/
+.vscode/
+*.code-workspace
+
+# 编辑器临时 / 备份文件
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.tmp
+
+# ---------- 密钥与本地配置（重点） ----------
+# API Key 请用环境变量 DASHSCOPE_API_KEY 传入，不要写进 application.yml / run.bat
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+application-local.properties
+application-*.local.yml
+application-*.local.yaml
+application-*.local.properties
+secrets/
+*.pem
+*.p12
+*.pfx
+*.key
+*.jks
+*.keystore
+
+# ---------- 日志与运行时数据 ----------
+*.log
+*.log.*
+logs/
+*.dumpstream
+*.hprof
+# application.yml 里 aiops.memory.store-file 指向的长期记忆文件
+aiops-long-term-memory.json
+
+# ---------- 操作系统生成文件 ----------
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

@@ -1,0 +1,87 @@
+server:
+  port: 8088
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: ai-ops-assistant
+
+  # ======================================================================
+  #  阿里云百炼接入配置
+  # ----------------------------------------------------------------------
+  #  注意：Token Plan（团队版坐席）的 API Key 以 sk-sp- 开头，
+  #       必须搭配 Token Plan 专属网关使用，不能用 dashscope.aliyuncs.com，
+  #       否则会返回 401 invalid_api_key。
+  #
+  #  ★ 请把下面 api-key 的占位符替换成你自己的 Key，
+  #    或者设置环境变量 DASHSCOPE_API_KEY（推荐，避免 Key 进代码库）。
+  # ======================================================================
+  ai:
+    # 本 Demo 只用对话模型，关掉 embedding 自动装配，避免无谓的 Bean 和潜在报错
+    model:
+      embedding: none
+    openai:
+      api-key: ${DASHSCOPE_API_KEY:换成你自己的key}
+      base-url: ${AI_BASE_URL:https://token-plan.cn-beijing.maas.aliyuncs.com}
+      chat:
+        completions-path: /compatible-mode/v1/chat/completions
+        options:
+          # Token Plan 网关可选模型（GET /compatible-mode/v1/models 可查全量）：
+          #   qwen3.8-flash（默认，快）/ qwen3.8-max（强）/ qwen3.7-plus（慢，慎用于演示）
+          #   kimi-k2.6 / glm-5.2 / deepseek-v4-pro ...
+          model: ${AI_CHAT_MODEL:qwen3.8-flash}
+          temperature: 0.3
+
+    # ------------------------------------------------------------------
+    #  如果你用的是【普通百炼 API Key】（sk- 开头，按量付费），
+    #  把上面三行换成下面这样即可，代码一行都不用改：
+    #
+    #    openai:
+    #      api-key: ${DASHSCOPE_API_KEY}
+    #      base-url: https://dashscope.aliyuncs.com
+    #      chat:
+    #        completions-path: /compatible-mode/v1/chat/completions
+    #        options:
+    #          model: qwen-plus
+    #
+    #  Key 和网关必须配套：sk-sp- 配 token-plan，sk- 配 dashscope。配错直接 401。
+    # ------------------------------------------------------------------
+
+  mvc:
+    async:
+      request-timeout: 300000
+
+  threads:
+    virtual:
+      enabled: true
+
+# ----------------------------------------------------------------------
+#  Demo 自身的业务参数
+# ----------------------------------------------------------------------
+aiops:
+  # qwen3 系列默认开启"思考模式"，会先输出大段 reasoning 再给答案，
+  # 多智能体串联时会非常慢（实测单次 76s）。Demo 场景下关闭它。
+  disable-thinking: true
+  memory:
+    # 会话记忆窗口：保留最近多少条消息
+    window-size: 20
+    # 长期记忆文件位置（跨会话保留用户画像/偏好）
+    store-file: ${java.io.tmpdir}/aiops-long-term-memory.json
+    # 每个用户最多保留多少条长期记忆，超出淘汰最旧的
+    max-facts-per-user: 20
+    # 是否在每轮对话后异步抽取长期记忆（会多消耗一次模型调用）
+    learning-enabled: true
+  multi-agent:
+    # 报告撰写 Agent 单独用更强的模型（可改成和主模型一致）
+    report-model: ${AI_REPORT_MODEL:qwen3.8-flash}
+    # 专家 Agent 是否允许并行执行
+    parallel-experts: true
+
+logging:
+  level:
+    root: INFO
+    com.ake.aiops: DEBUG
+    org.springframework.ai: INFO
