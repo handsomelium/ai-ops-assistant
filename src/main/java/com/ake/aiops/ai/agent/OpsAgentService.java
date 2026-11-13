@@ -151,7 +151,7 @@ public class OpsAgentService {
 
             String full = answer.toString();
 
-            // 动作幻觉校验：模型声称"已派单/已创建"，但审计里没有任何成功的写操作 -> 当场纠正。
+            // 动作幻觉校验：模型声称"已派单/已创建"，但审计里没有与之对应的成功写操作 -> 当场纠正。
             // 这一步不能省，也不能只靠提示词约束：实测中模型确实出现过
             // "已派给陈明（1380-0004）" 而 assignWorkOrder 从未被调用的情况。
             Optional<String> correction = writeClaimGuard.verify(full, audit);
@@ -159,7 +159,7 @@ public class OpsAgentService {
                 log.warn("[动作幻觉已纠正] 实际调用={} 成功的写操作={} 被拒的写操作={}",
                         audit.calledTools(), audit.succeededWrites(), audit.rejectedWrites());
                 stream.emit("warning", Map.of(
-                        "message", "检测到动作幻觉：模型声称已执行写操作，但审计记录显示没有任何写操作成功",
+                        "message", "检测到动作幻觉：模型声称已执行写操作，但审计记录中没有与这些动作对应的成功写操作",
                         "calledTools", audit.calledTools(),
                         "rejectedWrites", audit.rejectedWrites()));
                 stream.delta(correction.get());

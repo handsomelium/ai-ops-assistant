@@ -161,7 +161,7 @@ public abstract class AbstractExpertAgent implements ExpertAgent {
         if (stream != null) {
             stream.delta(correction.get());
             stream.emit("warning", Map.of(
-                    "message", displayName() + " 声称已执行写操作，但审计记录显示没有成功的写操作",
+                    "message", displayName() + " 声称已执行写操作，但审计记录中没有与这些动作对应的成功写操作",
                     "calledTools", audit.calledTools()));
         }
         return output + correction.get();

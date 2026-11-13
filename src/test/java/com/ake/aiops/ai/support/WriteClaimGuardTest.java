@@ -105,4 +105,61 @@ class WriteClaimGuardTest {
         assertTrue(correction.get().contains("被业务规则拒绝"), "应说明有写操作被拒");
         assertFalse(correction.get().isBlank());
     }
+
+    @Test
+    @DisplayName("部分成功不能免检：建单成功后谎报已派单，必须检出")
+    void catchesLieAfterAnotherWriteSucceeded() {
+        WriteAudit audit = auditWith("createWorkOrder");
+        String answer = "已创建工单 WO-2026-0008，并已派给陈明（1380-0004）。";
+
+        Optional<String> correction = guard.verify(answer, audit);
+        assertTrue(correction.isPresent(), "有一次写成功不等于所有动作声明都可信");
+        String text = correction.get();
+        assertTrue(text.contains("已派给"), "应点名未被证实的动作");
+        assertTrue(text.contains("createWorkOrder"), "应列出本轮实际成功的写操作");
+        assertFalse(text.contains("没有任何写操作成功执行"), "已有写成功时不能再说一次都没有");
+    }
+
+    @Test
+    @DisplayName("声明的每一个动作都有对应成功记录，才保持静默")
+    void silentWhenAllClaimedActionsAreBacked() {
+        WriteAudit audit = auditWith("createWorkOrder", "assignWorkOrder");
+        assertTrue(guard.verify("已创建工单 WO-2026-0008，并已派给陈明。", audit).isEmpty());
+    }
+
+    @Test
+    @DisplayName("谎报设备状态变更，即使本轮派单真的成功也要检出")
+    void catchesDeviceStatusLie() {
+        WriteAudit audit = auditWith("assignWorkOrder");
+        assertTrue(guard.verify("已派给陈明，设备状态已变更为 RUNNING。", audit).isPresent());
+        assertTrue(guard.verify("已派给陈明，设备状态已恢复为运行。", audit).isPresent());
+    }
+
+    @Test
+    @DisplayName("泛化的状态描述不误报：本轮确有写操作成功即可")
+    void doesNotFlagGenericStatusWording() {
+        WriteAudit audit = auditWith("assignWorkOrder");
+        assertTrue(guard.verify("派单已完成，工单状态已改为处理中。", audit).isEmpty());
+    }
+
+    @Test
+    @DisplayName("多个动作声明中只挑出没被证实的那些")
+    void listsOnlyUnverifiedClaims() {
+        WriteAudit audit = auditWith("assignWorkOrder");
+        String answer = "已派给陈明，另外已关闭工单 WO-2026-0006，并已调整优先级为 HIGH。";
+
+        Optional<String> correction = guard.verify(answer, audit);
+        assertTrue(correction.isPresent());
+        String text = correction.get();
+        assertTrue(text.contains("已关闭工单"), "应点名关单声明");
+        assertTrue(text.contains("已调整优先级"), "应点名调级声明");
+        assertFalse(text.contains("未被证实的动作声明：已派给"), "派单已被证实，不该列为未证实");
+    }
+
+    @Test
+    @DisplayName("复述同一个动作按类型核对，不按次数误报")
+    void repeatingSameClaimIsNotFlagged() {
+        WriteAudit audit = auditWith("assignWorkOrder");
+        assertTrue(guard.verify("已派给陈明，确认已派给陈明（1380-0004）。", audit).isEmpty());
+    }
 }
