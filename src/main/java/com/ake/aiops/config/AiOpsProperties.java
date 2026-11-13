@@ -6,23 +6,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "aiops")
 public class AiOpsProperties {
 
-    /**
-     * 是否关闭 qwen3 系列的思考模式。
-     * qwen3.x 默认先输出一大段 reasoning 再给答案，实测单次可达 76 秒；
-     * 多智能体串联时会放大数倍，课堂演示基本不可用，所以默认关闭。
-     */
-    private boolean disableThinking = true;
-
     private Memory memory = new Memory();
     private MultiAgent multiAgent = new MultiAgent();
-
-    public boolean isDisableThinking() {
-        return disableThinking;
-    }
-
-    public void setDisableThinking(boolean disableThinking) {
-        this.disableThinking = disableThinking;
-    }
+    private Vendor vendor = new Vendor();
 
     public Memory getMemory() {
         return memory;
@@ -38,6 +24,14 @@ public class AiOpsProperties {
 
     public void setMultiAgent(MultiAgent multiAgent) {
         this.multiAgent = multiAgent;
+    }
+
+    public Vendor getVendor() {
+        return vendor;
+    }
+
+    public void setVendor(Vendor vendor) {
+        this.vendor = vendor;
     }
 
     /** 记忆相关配置。 */
@@ -86,7 +80,7 @@ public class AiOpsProperties {
 
     /** 多智能体编排配置。 */
     public static class MultiAgent {
-        /** 报告撰写 Agent 使用的模型 */
+        /** 报告撰写 Agent 使用的模型（各厂商段落里会覆盖） */
         private String reportModel = "qwen3.8-flash";
         /** 专家 Agent 是否并行执行 */
         private boolean parallelExperts = true;
@@ -105,6 +99,76 @@ public class AiOpsProperties {
 
         public void setParallelExperts(boolean parallelExperts) {
             this.parallelExperts = parallelExperts;
+        }
+    }
+
+    /**
+     * 厂商差异配置 —— 全部写在 application.yml 对应厂商的 --- 段落里。
+     *
+     * <p>连接参数（网关 / 路径 / 模型名）属于 {@code spring.ai.openai.*}，
+     * Spring AI 只认那个 namespace；这里只管协议之外的东西：私有请求体参数、
+     * 显示名、路径过滤、JSON 模式开关。
+     */
+    public static class Vendor {
+        /** 当前厂商名（显示在自检和状态面板） */
+        private String active = "default";
+        /** 显示名 */
+        private String displayName = "自定义厂商";
+        /** 要合并进请求体的 JSON 对象，例如 {"enable_thinking":false} */
+        private String extraBodyJson = "{}";
+        /** 总开关：false = 完全不改写请求体 */
+        private boolean injectEnabled = true;
+        /** 只改写路径里含这个标记的请求 */
+        private String pathMarker = "/chat/completions";
+        /** 服务端是否支持 response_format=json_object */
+        private boolean jsonMode = true;
+
+        public String getActive() {
+            return active;
+        }
+
+        public void setActive(String active) {
+            this.active = active;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public void setDisplayName(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getExtraBodyJson() {
+            return extraBodyJson;
+        }
+
+        public void setExtraBodyJson(String extraBodyJson) {
+            this.extraBodyJson = extraBodyJson;
+        }
+
+        public boolean isInjectEnabled() {
+            return injectEnabled;
+        }
+
+        public void setInjectEnabled(boolean injectEnabled) {
+            this.injectEnabled = injectEnabled;
+        }
+
+        public String getPathMarker() {
+            return pathMarker;
+        }
+
+        public void setPathMarker(String pathMarker) {
+            this.pathMarker = pathMarker;
+        }
+
+        public boolean isJsonMode() {
+            return jsonMode;
+        }
+
+        public void setJsonMode(boolean jsonMode) {
+            this.jsonMode = jsonMode;
         }
     }
 }

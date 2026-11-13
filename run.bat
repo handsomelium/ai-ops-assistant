@@ -19,16 +19,11 @@ if not exist "%JAVA_HOME%\bin\java.exe" (
 )
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 
-REM --- 2. API Key ------------------------------------------------------
-REM Preferred: set DASHSCOPE_API_KEY as a system/user environment variable.
-REM Otherwise paste your key between the quotes below (do NOT commit it).
-if not defined DASHSCOPE_API_KEY set "DASHSCOPE_API_KEY="
-if "%DASHSCOPE_API_KEY%"=="" (
-    echo [WARN] DASHSCOPE_API_KEY is empty.
-    echo        The app will still start, but every AI call will fail with 401.
-    echo        Set it now, or edit application.yml, then restart.
-    echo.
-)
+REM --- 2. Config -------------------------------------------------------
+REM Vendor and API Key live in ONE file: src\main\resources\application.yml
+REM Edit the two lines at the top (spring.profiles.active / api-key), then rerun.
+echo [INFO] Config: src\main\resources\application.yml  ^(vendor + API Key^)
+echo.
 
 REM --- 3. Build if needed ---------------------------------------------
 if not exist "target\ai-ops-assistant.jar" (

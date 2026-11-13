@@ -1,3 +1,16 @@
+# ======================================================================
+#  园区智能运维助手 · 演示工程配置
+# ----------------------------------------------------------------------
+#  ★ 切换厂商只需要改下面这两行，改完重启（IDEA 里 Rerun）即可：
+#      ① spring.profiles.active    模型厂家
+#      ② spring.ai.openai.api-key  API Key
+#    没有环境变量、没有额外配置文件，全部都在这一个文件里。
+#
+#  下面每个 --- 段落就是一个厂商的完整参数。加新厂商 = 复制一段改 5 个值，
+#  Java 代码一行都不用动。
+#
+#  Key 只在本机演示用，自己注意别提交；本项目不上生产。
+# ======================================================================
 server:
   port: 8088
   servlet:
@@ -9,79 +22,132 @@ spring:
   application:
     name: ai-ops-assistant
 
-  # ======================================================================
-  #  阿里云百炼接入配置
-  # ----------------------------------------------------------------------
-  #  注意：Token Plan（团队版坐席）的 API Key 以 sk-sp- 开头，
-  #       必须搭配 Token Plan 专属网关使用，不能用 dashscope.aliyuncs.com，
-  #       否则会返回 401 invalid_api_key。
-  #
-  #  ★ 请把下面 api-key 的占位符替换成你自己的 Key，
-  #    或者设置环境变量 DASHSCOPE_API_KEY（推荐，避免 Key 进代码库）。
-  # ======================================================================
+  # ↓↓↓ ① 模型厂家：aliyun-token-plan / aliyun-dashscope / deepseek / custom
+  profiles:
+    active: aliyun-token-plan
+
   ai:
-    # 本 Demo 只用对话模型，关掉 embedding 自动装配，避免无谓的 Bean 和潜在报错
     model:
       embedding: none
     openai:
-      api-key: ${DASHSCOPE_API_KEY:换成你自己的apikey}
-      base-url: ${AI_BASE_URL:https://token-plan.cn-beijing.maas.aliyuncs.com}
-      chat:
-        completions-path: /compatible-mode/v1/chat/completions
-        options:
-          # Token Plan 网关可选模型（GET /compatible-mode/v1/models 可查全量）：
-          #   qwen3.8-flash（默认，快）/ qwen3.8-max（强）/ qwen3.7-plus（慢，慎用于演示）
-          #   kimi-k2.6 / glm-5.2 / deepseek-v4-pro ...
-          model: ${AI_CHAT_MODEL:qwen3.8-flash}
-          temperature: 0.3
-
-    # ------------------------------------------------------------------
-    #  如果你用的是【普通百炼 API Key】（sk- 开头，按量付费），
-    #  把上面三行换成下面这样即可，代码一行都不用改：
-    #
-    #    openai:
-    #      api-key: ${DASHSCOPE_API_KEY}
-    #      base-url: https://dashscope.aliyuncs.com
-    #      chat:
-    #        completions-path: /compatible-mode/v1/chat/completions
-    #        options:
-    #          model: qwen-plus
-    #
-    #  Key 和网关必须配套：sk-sp- 配 token-plan，sk- 配 dashscope。配错直接 401。
-    # ------------------------------------------------------------------
+      # ↓↓↓ ② API Key：直接填，不要加引号。换厂商时记得换对应的 Key。
+      api-key: 请替换为你的_APIKey
 
   mvc:
     async:
       request-timeout: 300000
-
   threads:
     virtual:
       enabled: true
 
-# ----------------------------------------------------------------------
-#  Demo 自身的业务参数
-# ----------------------------------------------------------------------
 aiops:
-  # qwen3 系列默认开启"思考模式"，会先输出大段 reasoning 再给答案，
-  # 多智能体串联时会非常慢（实测单次 76s）。Demo 场景下关闭它。
-  disable-thinking: true
   memory:
-    # 会话记忆窗口：保留最近多少条消息
     window-size: 20
-    # 长期记忆文件位置（跨会话保留用户画像/偏好）
     store-file: ${java.io.tmpdir}/aiops-long-term-memory.json
-    # 每个用户最多保留多少条长期记忆，超出淘汰最旧的
     max-facts-per-user: 20
-    # 是否在每轮对话后异步抽取长期记忆（会多消耗一次模型调用）
     learning-enabled: true
   multi-agent:
-    # 报告撰写 Agent 单独用更强的模型（可改成和主模型一致）
-    report-model: ${AI_REPORT_MODEL:qwen3.8-flash}
-    # 专家 Agent 是否允许并行执行
     parallel-experts: true
+    # 报告撰写 Agent 的模型，各厂商段落里会覆盖成对应模型
+    report-model: qwen3.8-flash
 
 logging:
   level:
     root: INFO
     com.ake.aiops: DEBUG
     org.springframework.ai: INFO
+
+# ======================================================================
+#  厂商段落：把上面的 active 改成这里 on-profile 的名字，就切到这一段
+#  每段必填 5 项：
+#    base-url / completions-path / model / report-model / extra-body-json
+#  extra-body-json 是厂商私有参数（关思考模式等），标准 OpenAI 兼容服务填 '{}'
+# ======================================================================
+---
+# ① 阿里云百炼 Token Plan（sk-sp- 开头的 Key）
+spring:
+  config:
+    activate:
+      on-profile: aliyun-token-plan
+  ai:
+    openai:
+      base-url: https://token-plan.cn-beijing.maas.aliyuncs.com
+      chat:
+        completions-path: /compatible-mode/v1/chat/completions
+        options:
+          model: qwen3.8-flash
+aiops:
+  multi-agent:
+    report-model: qwen3.8-flash
+  vendor:
+    active: aliyun-token-plan
+    display-name: 阿里云百炼 Token Plan
+    extra-body-json: '{"enable_thinking":false}'
+
+---
+# ② 阿里云百炼按量付费（sk- 开头的普通 Key）
+spring:
+  config:
+    activate:
+      on-profile: aliyun-dashscope
+  ai:
+    openai:
+      base-url: https://dashscope.aliyuncs.com
+      chat:
+        completions-path: /compatible-mode/v1/chat/completions
+        options:
+          model: qwen-plus
+aiops:
+  multi-agent:
+    report-model: qwen-plus
+  vendor:
+    active: aliyun-dashscope
+    display-name: 阿里云百炼 按量付费
+    extra-body-json: '{"enable_thinking":false}'
+
+---
+# ③ DeepSeek 官方 API
+spring:
+  config:
+    activate:
+      on-profile: deepseek
+  ai:
+    openai:
+      base-url: https://api.deepseek.com
+      chat:
+        completions-path: /chat/completions
+        options:
+          model: deepseek-flash
+aiops:
+  multi-agent:
+    report-model: deepseek-flash
+  vendor:
+    active: deepseek
+    display-name: DeepSeek
+    # DeepSeek 默认开思考；思考模式带 tools 必须回传 reasoning_content，
+    # Spring AI 不会回传，会直接 400，所以这里显式关掉
+    extra-body-json: '{"thinking":{"type":"disabled"}}'
+
+---
+# ④ 自定义 OpenAI 兼容服务（Kimi / 智谱 / vLLM / Ollama…）
+#    复制这一段、把 on-profile 改成自己的名字，再改下面几个值就能加新厂商
+spring:
+  config:
+    activate:
+      on-profile: custom
+  ai:
+    openai:
+      base-url: http://localhost:11434
+      chat:
+        completions-path: /v1/chat/completions
+        options:
+          model: qwen2.5:7b
+aiops:
+  multi-agent:
+    report-model: qwen2.5:7b
+  vendor:
+    active: custom
+    display-name: 自定义 OpenAI 兼容服务
+    extra-body-json: '{}'
+    # 本地模型若不支持 response_format=json_object，把下面这行解开注释
+    # json-mode: false

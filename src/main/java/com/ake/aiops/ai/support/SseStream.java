@@ -125,8 +125,8 @@ public final class SseStream {
         String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
         if (msg.contains("401") || msg.toLowerCase().contains("invalid_api_key")
                 || msg.contains("Incorrect API key")) {
-            msg = "API Key 无效或未配置。请在 application.yml 里替换 spring.ai.openai.api-key，"
-                    + "或设置环境变量 DASHSCOPE_API_KEY。原始错误：" + msg;
+            msg = "API Key 无效或未配置，或 Key 与当前厂商不配套。请检查 application.yml 顶部的 "
+                    + "spring.profiles.active 与 spring.ai.openai.api-key，改完重启。原始错误：" + msg;
         }
         finished = true;
         doEmit("error", new Events.Error(msg));

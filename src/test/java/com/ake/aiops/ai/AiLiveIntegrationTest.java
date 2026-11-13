@@ -11,7 +11,7 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.codec.ServerSentEvent;
@@ -29,12 +29,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 真实调用大模型的端到端测试。
  *
- * <p><b>默认跳过</b>：只有设置了环境变量 {@code DASHSCOPE_API_KEY} 才会执行，
- * 这样 CI 和其他没有 Key 的人跑 {@code mvn test} 不会失败。
+ * <p><b>默认跳过</b>：只有加 {@code -Daiops.live=true} 才会执行，
+ * 这样没填 Key 时跑 {@code mvn test} 不会失败。
+ * 厂商和 Key 都在 application.yml 最上面两行，改完同一个测试类
+ * 可以跑在任何 OpenAI 兼容厂商上。
  *
  * <pre>
- *   Windows:  set DASHSCOPE_API_KEY=sk-sp-xxxx &amp;&amp; mvn test
- *   PowerShell: $env:DASHSCOPE_API_KEY="sk-sp-xxxx"; mvn test
+ *   mvn test -Daiops.live=true
  * </pre>
  *
  * <p><b>断言策略</b>：大模型输出是不确定的，所以这里只断言<b>结构与链路</b>
@@ -44,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@EnabledIfEnvironmentVariable(named = "DASHSCOPE_API_KEY", matches = ".{10,}")
+@EnabledIfSystemProperty(named = "aiops.live", matches = "true")
 class AiLiveIntegrationTest {
 
     private static final Duration TIMEOUT = Duration.ofMinutes(6);

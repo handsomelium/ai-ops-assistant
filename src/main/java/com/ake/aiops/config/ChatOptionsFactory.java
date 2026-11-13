@@ -5,39 +5,32 @@ import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 统一构造 ChatOptions：模型、温度、以及厂商私有参数。
+ * 统一构造 ChatOptions：模型、温度、厂商私有参数、JSON 输出开关。
  *
  * <p>集中一处的原因是：项目里有多处 ChatClient（基础问答、单体 Agent、
- * 三个专家、报告撰写），每处的模型和温度都可能不同，但"关掉思考模式"
- * 这类全局约定必须一致，散在各处一定会漏。
+ * 三个专家、报告撰写），每处的模型和温度都可能不同，但"私有参数"这类
+ * 全局约定必须一致，散在各处一定会漏。
  *
- * <p>关于私有参数 {@code enable_thinking}：
- * {@link OpenAiChatOptions} 提供了 {@code extraBody}，本意就是给非 OpenAI 官方
- * 服务（百炼、DeepSeek、Kimi…）传厂商参数的逃生舱口，但 <b>Spring AI 1.1.0
- * 实际会把它丢掉</b>，详见 {@link VendorParamConfig} 的说明。
- *
- * <p>实测数据（同一个问题，30 字以内回答）：
- * <pre>
- *   qwen3.8-flash  开思考：3.9s / 230 tokens（其中 reasoning 215）
- *   qwen3.8-flash  关思考：0.8s /  18 tokens
- *   qwen3.7-plus   开思考：76.2s / 4703 tokens  ← 多智能体串联会直接不可用
- * </pre>
+ * <p>私有参数来自 {@link VendorBodyInjector}（即 application.yml 当前厂商段落的
+ * {@code aiops.vendor.extra-body-json}）。
+ * 注意 Spring AI 1.1.0 组装请求时会把 {@code extraBody} 丢掉，真正兜住它的是
+ * HTTP 层注入；这里仍设置一份，是为了表达意图，并且一旦框架修复，
+ * 注入器会检测到 key 已存在而自动让路，不会出现两份不一致。
  */
 @Component
 public class ChatOptionsFactory {
 
     private final String defaultModel;
-    private final boolean disableThinking;
+    private final VendorBodyInjector injector;
 
     public ChatOptionsFactory(
             @Value("${spring.ai.openai.chat.options.model:qwen3.8-flash}") String defaultModel,
-            AiOpsProperties properties) {
+            VendorBodyInjector injector) {
         this.defaultModel = defaultModel;
-        this.disableThinking = properties.isDisableThinking();
+        this.injector = injector;
     }
 
     public String getDefaultModel() {
@@ -58,13 +51,19 @@ public class ChatOptionsFactory {
     }
 
     /**
-     * 强制 JSON 输出。多智能体里的"调度 Agent"必须用它 ——
-     * 只有拿到严格结构化结果，编排器才能可靠地解析任务计划。
+     * 强制 JSON 输出。多智能体里的"调度 Agent"必须拿到结构化结果，
+     * 编排器才能可靠解析任务计划。
+     *
+     * <p>少数兼容服务不支持 {@code response_format=json_object}，
+     * 用 {@code aiops.vendor.json-mode=false} 关掉，此时退化为提示词约束
+     * + {@code Json.extractObject} 容错解析 + 两次重试，链路不会崩。
      */
     public OpenAiChatOptions json(String model, double temperature) {
-        return base(model, temperature)
-                .responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
-                .build();
+        OpenAiChatOptions.Builder builder = base(model, temperature);
+        if (injector.isJsonMode()) {
+            builder.responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build());
+        }
+        return builder.build();
     }
 
     public OpenAiChatOptions json() {
@@ -75,12 +74,8 @@ public class ChatOptionsFactory {
         OpenAiChatOptions.Builder builder = OpenAiChatOptions.builder()
                 .model(model == null || model.isBlank() ? defaultModel : model)
                 .temperature(temperature);
-        if (disableThinking) {
-            // 注意：Spring AI 1.1.0 组装请求时会把 extraBody 丢掉，这里设置实际不生效。
-            // 真正兜住它的是 VendorParamConfig 里的 HTTP 拦截器。
-            // 保留这行是为了表达意图，并且一旦框架修复，拦截器会检测到 key 已存在而自动让路。
-            Map<String, Object> extra = new HashMap<>();
-            extra.put("enable_thinking", false);
+        Map<String, Object> extra = injector.asMap();
+        if (!extra.isEmpty()) {
             builder.extraBody(extra);
         }
         return builder;

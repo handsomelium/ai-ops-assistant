@@ -1,99 +1,58 @@
 package com.ake.aiops.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.reactive.JdkClientHttpConnector;
 
 /**
- * 把厂商私有参数 {@code enable_thinking=false} 注入到实际发出的 HTTP 请求体里。
+ * 在两条出网通道上挂请求体改写，把厂商私有参数补进真实发出的 HTTP 请求。
  *
- * <p><b>为什么需要这个类？——一个真实踩到的框架坑。</b>
- *
- * <p>Spring AI 1.1.0 的 {@code OpenAiChatOptions} 明明提供了 {@code extraBody}，
+ * <p><b>为什么需要这两个 Customizer？——一个真实踩到的框架坑。</b>
+ * Spring AI 1.1.0 的 {@code OpenAiChatOptions} 明明提供了 {@code extraBody}，
  * {@code ChatCompletionRequest} 上也有对应字段和 {@code @JsonAnyGetter}，
  * 看起来设置一下就能传私有参数。但实测<b>不生效</b>：
- * {@code OpenAiChatModel} 在把 options 组装成请求时并没有把 extraBody 拷过去，
- * 参数被静默丢弃 —— 不报错、不警告，你只会发现"模型怎么这么慢"。
+ * {@code OpenAiChatModel} 组装请求时并没有把 extraBody 拷过去，参数被静默丢弃。
+ * 验证方法：起一个本地回显服务，把 {@code spring.ai.openai.base-url} 指过去
+ * 抓真实请求体，结果只有 {@code messages / model / stream / temperature}。
  *
- * <p>验证方法（也是排查这类问题的通用手段）：起一个本地回显 HTTP 服务，
- * 把 {@code spring.ai.openai.base-url} 指过去，抓一份真实请求体出来看。
- * 抓到的结果确实只有 {@code messages / model / stream / temperature}。
+ * <p><b>为什么私有参数很重要？</b>不少厂商默认开启思考模式：百炼 qwen3.7-plus
+ * 实测回答一个 30 字的问题要 76 秒，DeepSeek 思考模式携带 tools 时还要求
+ * 回传 {@code reasoning_content}（Spring AI 不会回传，直接 400）。
+ * 关掉之后本 Demo 的多智能体全链路从 171s 降到 38s。
  *
- * <p><b>为什么这个参数很重要？</b>实测同一个问题（3000 字材料 → 1000 字报告）：
- * <pre>
- *   enable_thinking=true  ：12.4s，reasoning 805 字，completion 997 tokens
- *   enable_thinking=false ： 7.7s，reasoning   0 字，completion 649 tokens
- * </pre>
- * 而小问题上的差距更夸张：qwen3.8-flash 开思考 3.9s / 关思考 0.8s，
- * qwen3.7-plus 开思考 <b>76.2s</b>（4684 个 reasoning token）。
- * 多智能体串联会把这个问题放大好几倍 —— 本 Demo 实测汇总节点因此从 ~10s 涨到 109s。
- *
- * <p>所以这里用 {@link RestClientCustomizer} 挂一个拦截器，在请求真正发出前
- * 把参数补进 JSON 体。Spring Boot 会把所有 {@code RestClientCustomizer} Bean
- * 应用到自动装配的 {@code RestClient.Builder} 上，而 Spring AI 正是用这个 Builder
- * 建 OpenAiApi 的，因此能覆盖到全部模型调用。
+ * <p><b>改动后的结构</b>：参数内容来自 application.yml 当前厂商段落的
+ * {@code aiops.vendor.extra-body-json}，由 {@link VendorBodyInjector} 统一解析和合并；
+ * 这里只负责把同一个注入器接到两条通道上，不再有任何厂商专属字段名。
  */
 @Configuration
 public class VendorParamConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(VendorParamConfig.class);
-
-    /** 只处理对话补全接口，避免影响应用里其他的 RestClient 调用。 */
-    private static final String CHAT_PATH_MARKER = "/chat/completions";
-
+    /** 非流式（.call()）走 RestClient，能被 RestClientCustomizer 拦到。 */
     @Bean
-    public RestClientCustomizer vendorParamCustomizer(AiOpsProperties properties, ObjectMapper mapper) {
-        return builder -> builder.requestInterceptor(thinkingInterceptor(properties, mapper));
+    public RestClientCustomizer vendorParamCustomizer(VendorBodyInjector injector) {
+        return builder -> builder.requestInterceptor((request, body, execution) -> {
+            if (!injector.isEnabled() || body == null || body.length == 0
+                    || !injector.matches(request.getURI().getPath())) {
+                return execution.execute(request, body);
+            }
+            return execution.execute(request, injector.patch(body));
+        });
     }
 
     /**
-     * 流式调用走的是 WebClient，上面那个 RestClient 拦截器管不到，
+     * 流式（.stream()）走 WebClient，上面那个 RestClient 拦截器管不到，
      * 所以再挂一个 {@code WebClientCustomizer}，把连接器换成会改写请求体的包装版本。
+     * 两条通道都必须处理，否则"关掉思考模式"只对一半调用生效 ——
+     * 而恰恰是流式那条（用户能直接感知延迟的那条）没生效。
      *
-     * <p>本工程没有引入 reactor-netty，WebClient 默认就会用 JDK HttpClient，
+     * <p>本工程没有引入 reactor-netty，WebClient 默认就用 JDK HttpClient，
      * 这里显式指定同一个实现，避免"包装后反而换了底层 HTTP 客户端"。
      */
     @Bean
-    public WebClientCustomizer vendorParamWebClientCustomizer(AiOpsProperties properties, ObjectMapper mapper) {
+    public WebClientCustomizer vendorParamWebClientCustomizer(VendorBodyInjector injector) {
         return builder -> builder.clientConnector(
-                new VendorParamHttpConnector(new JdkClientHttpConnector(), mapper, properties));
-    }
-
-    private ClientHttpRequestInterceptor thinkingInterceptor(AiOpsProperties properties, ObjectMapper mapper) {
-        return (request, body, execution) -> {
-            if (!properties.isDisableThinking() || body == null || body.length == 0) {
-                return execution.execute(request, body);
-            }
-            String path = request.getURI().getPath();
-            if (path == null || !path.contains(CHAT_PATH_MARKER)) {
-                return execution.execute(request, body);
-            }
-            try {
-                JsonNode root = mapper.readTree(body);
-                if (!(root instanceof ObjectNode obj)) {
-                    return execution.execute(request, body);
-                }
-                // 已经带了就不覆盖：万一将来 Spring AI 修好了 extraBody，这里自动让路
-                if (obj.has("enable_thinking")) {
-                    return execution.execute(request, body);
-                }
-                obj.put("enable_thinking", false);
-                byte[] patched = mapper.writeValueAsBytes(obj);
-                log.debug("已注入 enable_thinking=false，请求体 {} -> {} 字节", body.length, patched.length);
-                return execution.execute(request, patched);
-            } catch (Exception e) {
-                // 解析失败就原样放行，绝不能因为一个优化参数把请求搞挂
-                log.warn("注入 enable_thinking 失败，按原请求发送：{}", e.getMessage());
-                return execution.execute(request, body);
-            }
-        };
+                new VendorParamHttpConnector(new JdkClientHttpConnector(), injector));
     }
 }

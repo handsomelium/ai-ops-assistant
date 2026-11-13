@@ -154,13 +154,14 @@ async function loadStatus() {
         const ok = state.status.apiKeyConfigured;
         $('#status-dot').className = 'dot ' + (ok ? 'ok' : 'err');
         $('#status-text').textContent = ok
-            ? `${state.status.chatModel} · 已就绪`
+            ? `${state.status.vendorDisplayName || '模型服务'} · ${state.status.chatModel} · 已就绪`
             : 'API Key 未配置';
         renderContextPanel();
         if (!ok) {
-            showBanner('err', 'API Key 未配置：请编辑 <code>src/main/resources/application.yml</code> 里的 '
-                + '<code>spring.ai.openai.api-key</code>，或设置环境变量 <code>DASHSCOPE_API_KEY</code> 后重启。'
-                + '注意 Token Plan（sk-sp- 开头）必须配 token-plan 网关，普通百炼 Key（sk- 开头）必须配 dashscope 网关。');
+            showBanner('err', 'API Key 未配置：打开 <code>src/main/resources/application.yml</code>，'
+                + '在最上面填 <code>spring.ai.openai.api-key</code> 并选好 '
+                + '<code>spring.profiles.active</code>，然后重启。'
+                + 'Key 必须和厂商配套，配错会返回 401。');
         }
     } catch (e) {
         $('#status-dot').className = 'dot err';
@@ -495,8 +496,9 @@ function renderContextPanel() {
         card.innerHTML = `<div class="card-head"><h3>Agent 被授权的工具</h3>
             <span class="hint">${tools.length} 个</span></div>
             <div class="kv">
+                <div class="kv-row"><span class="kv-k">厂商</span><span class="kv-v">${s ? s.vendorDisplayName || s.vendor : '-'}</span></div>
                 <div class="kv-row"><span class="kv-k">模型</span><span class="kv-v mono">${s ? s.chatModel : '-'}</span></div>
-                <div class="kv-row"><span class="kv-k">思考模式</span><span class="kv-v">${s && s.thinkingDisabled ? '已关闭（省时间）' : '开启'}</span></div>
+                <div class="kv-row"><span class="kv-k">私有参数</span><span class="kv-v mono" style="font-size:11px">${s && s.vendorFields && s.vendorFields.length ? s.vendorFields.join(', ') : '无'}</span></div>
                 <div class="kv-row"><span class="kv-k">网关</span><span class="kv-v mono" style="font-size:11px">${s ? s.baseUrl : '-'}</span></div>
             </div>
             <div class="card-head" style="border-top:1px solid var(--line-soft)"><h3>工具清单</h3></div>

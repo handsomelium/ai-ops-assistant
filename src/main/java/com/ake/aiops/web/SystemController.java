@@ -5,6 +5,7 @@ import com.ake.aiops.ai.multiagent.SupervisorService;
 import com.ake.aiops.config.AiOpsProperties;
 import com.ake.aiops.config.ChatOptionsFactory;
 import com.ake.aiops.config.StartupValidator;
+import com.ake.aiops.config.VendorBodyInjector;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +25,7 @@ public class SystemController {
     private final OpsAgentService agentService;
     private final SupervisorService supervisor;
     private final AiOpsProperties properties;
+    private final VendorBodyInjector injector;
     private final String baseUrl;
 
     public SystemController(StartupValidator validator,
@@ -31,12 +33,14 @@ public class SystemController {
                             OpsAgentService agentService,
                             SupervisorService supervisor,
                             AiOpsProperties properties,
+                            VendorBodyInjector injector,
                             @Value("${spring.ai.openai.base-url:}") String baseUrl) {
         this.validator = validator;
         this.optionsFactory = optionsFactory;
         this.agentService = agentService;
         this.supervisor = supervisor;
         this.properties = properties;
+        this.injector = injector;
         this.baseUrl = baseUrl;
     }
 
@@ -47,7 +51,10 @@ public class SystemController {
         m.put("baseUrl", baseUrl);
         m.put("chatModel", optionsFactory.getDefaultModel());
         m.put("reportModel", properties.getMultiAgent().getReportModel());
-        m.put("thinkingDisabled", properties.isDisableThinking());
+        m.put("vendor", injector.getActive());
+        m.put("vendorDisplayName", injector.getDisplayName());
+        m.put("vendorFields", injector.getFieldNames());
+        m.put("jsonMode", injector.isJsonMode());
         m.put("parallelExperts", properties.getMultiAgent().isParallelExperts());
         m.put("memoryWindow", properties.getMemory().getWindowSize());
         m.put("longTermMemoryEnabled", properties.getMemory().isLearningEnabled());
